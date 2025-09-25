@@ -214,6 +214,7 @@ class TfidfVector:
 
 
 def main():
+    # Did you git pull?
     if os.path.exists("cleaned_tweet"):
         logger.info("cleaned_tweet folder already exists. Skipping data cleaning.")
     else:
