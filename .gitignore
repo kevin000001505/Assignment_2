@@ -1,0 +1,7 @@
+*.ipynb
+*.pdf
+tweet
+.venv
+__pycache__/
+.DS_Store
+cleaned_tweet

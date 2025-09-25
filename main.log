@@ -1,0 +1,5 @@
+2025-09-24 00:03:27,220:__init__:INFO:Creating cleaned_tweet folder structure
+2025-09-24 00:03:27,220:save_cleaned_file:INFO:Cleaning data on train dataset
+2025-09-24 00:03:28,323:save_cleaned_file:INFO:Cleaning data on test dataset
+2025-09-24 00:03:29,404:save_cleaned_file:INFO:Created word-to-id mapping for entire vocabulary
+2025-09-24 00:03:29,429:save_cleaned_file:INFO:Finished writting to vocab.json
