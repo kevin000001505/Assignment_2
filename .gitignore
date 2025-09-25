@@ -5,3 +5,4 @@ tweet
 __pycache__/
 .DS_Store
 cleaned_tweet
+main.log
