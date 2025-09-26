@@ -180,37 +180,53 @@ class DataProcessing:
         logger.info("Finished writting to vocab.json")
 
 
-class TfidfVector:
-    def __init__(self, doc_list: List[str]):
-        """doc_list is the total documents contain in list of strings"""
-        self.doc_list = doc_list
-        self.total_docs = len(doc_list)
+class TfIdfVector:
+    def __init__(self, documents: List[str]):
+        self.documents = documents
+        self.vocabulary = set()
+        self.update_vocabulary()
+        self.word2idx = {word: idx for idx, word in enumerate(self.vocabulary)}
+        self.idx2word = {idx: word for word, idx in self.word2idx.items()}
+        self.vector_length = len(self.vocabulary)
 
-    def transform(self, document: str) -> np.ndarray:
-        """Document is a single document"""
-        document_tokens = document.split()
+    def update_vocabulary(self):
+        """Updated the vocabulary based on the documents"""
+        for document in self.documents:
+            tokens = document.split()
+            self.vocabulary.update(tokens)
+        self.vocabulary = sorted(self.vocabulary)
 
-        tf = self.tf(document_tokens)
-        idf = self.idf(document_tokens)
-        return tf * idf
-
-    def tf(self, document_tokens: List[str]) -> np.ndarray:
-        """Calculate term frequency for a document"""
+    def tf(self, document_tokens: List[str]) -> np.array:
+        """Generate TF vector for a document"""
         total_tokens = len(document_tokens)
-        tf_dict = {
-            word: freq / total_tokens for word, freq in Counter(document_tokens).items()
-        }
-        document_tf = np.array(list(map(tf_dict.get, document_tokens)))
-        return document_tf
+        count = Counter(document_tokens)
+        tf_dict = {word: freq / total_tokens for word, freq in count.items()}
+        vector = np.zeros(self.vector_length)
+        for key, value in tf_dict.items():
+            idx = self.word2idx[key]
+            vector[idx] = value
+        return vector
 
-    def idf(self, document_tokens: List[str]) -> np.ndarray:
-        """Calculate inverse document frequency for a word"""
-        idf_values = []
+    def idf(self, document_tokens: List[str]) -> np.array:
+        """Generate IDF vector for a document"""
+        vector = np.zeros(self.vector_length)
         for word in document_tokens:
-            docs_contain_word = sum(1 for doc in self.doc_list if word in doc)
-            idf = np.log(self.total_docs / (1 + docs_contain_word))
-            idf_values.append(idf)
-        return np.array(idf_values)
+            idx = self.word2idx[word]
+            docs_contain_word = sum(1 for doc in self.documents if word in doc)
+            # Both add 1 to avoid making the idf became 0
+            vector[idx] = (
+                np.log((len(self.documents) + 1) / (docs_contain_word + 1)) + 1
+            )
+        return vector
+
+    def transform(self, document: str) -> np.array:
+        """Transform the document into a TF-IDF vector"""
+        document_tokens = document.split()
+        tf_vector = self.tf(document_tokens)
+        idf_vector = self.idf(document_tokens)
+        tf_idf_vector = tf_vector * idf_vector
+        tf_idf_vector = tf_idf_vector / np.linalg.norm(tf_idf_vector)
+        return tf_idf_vector
 
 
 def main():
@@ -223,8 +239,7 @@ def main():
         logger.info("Data cleaning completed.")
     list_of_files = list_all_files("./cleaned_tweet/train/positive")
     doc_list = [read_file(file) for file in list_of_files]
-
-    tf_idf = TfidfVector(doc_list)
+    tf_idf = TfIdfVector(doc_list)
     result = tf_idf.transform(doc_list[0])
     print(doc_list[0])
     print("TF-IDF vector shape for the first document:", result.shape)
