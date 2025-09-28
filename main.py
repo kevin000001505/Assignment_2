@@ -229,6 +229,170 @@ class TfIdfVector:
         return tf_idf_vector
 
 
+class FeedForwardNN:
+    def __init__(self):
+        self.layers = []
+        self.backward_loss = None
+
+    def layer(self, input_size: int, output_size: int):
+        weight = np.random.rand(input_size, output_size) * 0.1
+        bias = np.zeros((1, output_size)) * 0.1
+        self.layers.append((weight, bias))
+
+    def relu(self, x):
+        return np.maximum(0, x)
+
+    def sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
+
+    def derivate_sigmoid(self, x):
+        return self.sigmoid(x) * (1 - self.sigmoid(x))
+
+    def derivate_relu(self, x):
+        return np.where(x > 0, 1, 0)
+
+    def forward(self, x: List[np.ndarray]) -> np.ndarray:
+        # for input features
+        self.input = x
+        self.info = []
+        self.forward_z_cache = []
+        self.forward_a_cache = []
+        for obj in self.layers:
+            if isinstance(obj[0], str):
+                if obj[0] == "sigmoid":
+                    store = [obj[0], x]
+                    x = self.sigmoid(x)
+                    # This will store the activation output for use in backpropagation
+                    store.append(x)
+                    self.info.append(store)
+                    self.forward_a_cache.append(x)
+
+                elif obj[0] == "relu":
+                    store = [obj[0], x]
+                    x = self.relu(x)
+                    # This will store the activation output for use in backpropagation
+                    store.append(x)
+                    self.info.append(store)
+                    self.forward_a_cache.append(x)
+
+            else:
+                weight, bias = obj
+                store = [weight, bias, x]
+
+                # This will output the z value before activation
+                z = np.dot(x, weight) + bias
+                store.append(z)
+
+                # This will store the z value before activation for use in backpropagation
+                self.info.append(store)
+                self.forward_z_cache.append(z)
+                x = z
+        return x
+
+    def mean_squared_error(self, y_true: np.ndarray, y_pred: np.ndarray):
+        y_pred = self.sigmoid(y_pred)
+        self.backward_loss = self.derivate_mean_squared_error(y_true, y_pred)
+        return np.mean((y_true - y_pred) ** 2)
+
+    def derivate_mean_squared_error(self, y_true: np.ndarray, y_pred: np.ndarray):
+        return -2 * (y_true - (y_pred))
+
+    def binary_cross_entropy(self, y_true: np.ndarray, y_pred: np.ndarray):
+        # add eps to avoid log(0)
+        eps = 1e-9
+        return -np.mean(
+            y_true * np.log(y_pred + eps) + (1 - y_true) * np.log(1 - y_pred + eps)
+        )
+
+    def backward(self, learning_rate: float = 0.01):
+        # Assuming MSE as loss function
+        activation = None
+        updated_layers = []
+
+        # self.info is a list List[Tuple[str, np.ndarray]] or List[Tuple[np.ndarray, np.ndarray]]
+        for layer in reversed(self.info):
+            # Each layer store [weights or sigmoid, input, z]
+
+            # This is the output layer
+            if activation is None:
+                weights = layer[0]
+                bias = layer[1]
+                z_input = layer[2]
+                z_output = layer[3]
+                activation_output = self.derivate_sigmoid(z_output)
+
+                # calculate partial_c/ partial_w -> forward_output * partial_c/partial_z
+                # self.backward_loss is derivate of loss function: constant
+
+                # delta shape should be (1, output shape)
+                delta = self.backward_loss * activation_output
+                # z_input is our forward result, we use T to make it shape become (input_shape, 1)
+                gradient_w = z_input.T @ delta
+
+                # gradient shape will become (input_shape, output_shape). Same as our weight matrix
+                weights -= learning_rate * gradient_w
+
+                # gradient for bias
+                gradient_b = np.sum(delta, axis=0, keepdims=True)
+                bias -= learning_rate * gradient_b
+
+                updated_layers.append([weights, bias])
+                self.backward_loss = delta @ weights.T
+                activation = "no activation"
+                continue
+
+            # hidden layers
+            if isinstance(layer[0], str):
+                # Activation layer
+                if layer[0] == "sigmoid":
+                    activation = "sigmoid"
+                elif layer[0] == "relu":
+                    activation = "relu"
+                else:
+                    activation = "no activation"
+            else:
+                if activation:
+                    weights = layer[0]
+                    bias = layer[1]
+                    z_input = layer[2]
+                    z_output = layer[3]
+                    if activation == "sigmoid":
+                        activation_output = self.derivate_sigmoid(z_output)
+                    elif activation == "relu":
+                        activation_output = self.derivate_relu(z_output)
+                    else:  # No activation
+                        activation_output = 1
+
+                    # delta shape should be (1, output shape)
+                    delta = self.backward_loss * activation_output
+
+                    gradient = z_input.T @ delta
+                    weights -= learning_rate * gradient
+
+                    gradient_b = np.sum(delta, axis=0, keepdims=True)
+                    bias -= learning_rate * gradient_b
+
+                    updated_layers.append([weights, bias])
+                    self.backward_loss = delta @ weights.T
+        self.layers = list(reversed(updated_layers))
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        result = self.forward(x)
+        return (self.sigmoid(result) > 0.5).astype(int)
+
+    def train(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        learning_rate: float = 0.01,
+    ):
+        result = self.forward(x)
+        loss = self.mean_squared_error(y, result)
+        self.backward(learning_rate)
+
+        return loss
+
+
 def main():
     # Did you git pull?
     if os.path.exists("cleaned_tweet"):
@@ -244,6 +408,32 @@ def main():
     print(doc_list[0])
     print("TF-IDF vector shape for the first document:", result.shape)
     print("TF-IDF vector for the first document:", result)
+
+    # Test FeedForwardNN
+    nn = FeedForwardNN()
+    nn.layer(10, 8)
+    nn.layers.append(("sigmoid", None))
+    nn.layer(8, 4)
+    nn.layers.append(("sigmoid", None))
+    nn.layer(4, 1)
+    input = np.array(
+        [
+            0.1,
+            0.2,
+            0.3,
+            0.4,
+            0.5,
+            0.6,
+            0.7,
+            0.8,
+            0.9,
+            1.0,
+        ]
+    )
+    labels = np.array([1])
+    for epoch in range(10):
+        loss = nn.train(input.reshape(1, -1), labels, learning_rate=0.1)
+        print("Loss:", loss)
 
 
 if __name__ == "__main__":
