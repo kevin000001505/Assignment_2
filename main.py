@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)  # Set the overall logging level
 
 # Create a FileHandler to log to a file
-file_handler = logging.FileHandler('main.log')
+file_handler = logging.FileHandler("main.log")
 file_handler.setLevel(logging.INFO)  # Set the logging level for the file
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
@@ -33,6 +33,7 @@ console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)  # Set the logging level for the console
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
+
 
 # Simple function to read in files as string
 def read_file(file_path: str) -> str:
@@ -119,9 +120,7 @@ class DataProcessing:
         content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
 
         # Stemming
-        content = " ".join(
-            [self.stemmer.stem(word) for word in content.split()]
-        )
+        content = " ".join([self.stemmer.stem(word) for word in content.split()])
 
         return content.strip()
 
@@ -242,7 +241,9 @@ class TfIdfVector:
             idf_vector = self.idf(document_tokens)
             tf_idf_vector = tf_vector * idf_vector
             self.tfidf_table[idx] = tf_idf_vector / np.linalg.norm(tf_idf_vector)
-        logger.info(f"Created tf_idf mapping for corpus with shape {self.tfidf_table.shape}")
+        logger.info(
+            f"Created tf_idf mapping for corpus with shape {self.tfidf_table.shape}"
+        )
 
 
 class FeedForwardNN:
