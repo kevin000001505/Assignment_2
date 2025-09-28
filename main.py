@@ -272,8 +272,6 @@ class FeedForwardNN:
         # for input features
         self.input = x
         self.info = []
-        self.forward_z_cache = []
-        self.forward_a_cache = []
         for obj in self.layers:
             if isinstance(obj[0], str):
                 if obj[0] == "sigmoid":
@@ -282,7 +280,6 @@ class FeedForwardNN:
                     # This will store the activation output for use in backpropagation
                     store.append(x)
                     self.info.append(store)
-                    self.forward_a_cache.append(x)
 
                 elif obj[0] == "relu":
                     store = [obj[0], x]
@@ -290,7 +287,6 @@ class FeedForwardNN:
                     # This will store the activation output for use in backpropagation
                     store.append(x)
                     self.info.append(store)
-                    self.forward_a_cache.append(x)
 
             else:
                 weight, bias = obj
@@ -302,7 +298,6 @@ class FeedForwardNN:
 
                 # This will store the z value before activation for use in backpropagation
                 self.info.append(store)
-                self.forward_z_cache.append(z)
                 x = z
         return x
 
