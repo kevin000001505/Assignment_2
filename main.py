@@ -3,6 +3,8 @@ import re
 import json
 import random
 import numpy as np
+from numpy.typing import NDArray
+from nltk.stem.snowball import SnowballStemmer
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -16,15 +18,21 @@ import logging
 if os.path.exists("main.log"):
     os.remove("main.log")
 
-
-# Configure basic logging to a file
-logging.basicConfig(
-    filename="main.log",  # Name of the log file
-    level=logging.INFO,  # Minimum logging level to capture (e.g., INFO, DEBUG, WARNING, ERROR, CRITICAL)
-    format="%(asctime)s:%(funcName)s:%(levelname)s:%(message)s",  # Format of the log messages
-)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set the overall logging level
 
+# Create a FileHandler to log to a file
+file_handler = logging.FileHandler('main.log')
+file_handler.setLevel(logging.INFO)  # Set the logging level for the file
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Create a StreamHandler to log to the console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # Set the logging level for the console
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # Simple function to read in files as string
 def read_file(file_path: str) -> str:
@@ -57,10 +65,10 @@ class DataProcessing:
         # Check if the tweet folder exists
         if not (
             os.path.isdir(input_dir)
-            and os.path.isdir(os.path.join(output_dir, "test", "negative"))
-            and os.path.isdir(os.path.join(output_dir, "test", "positive"))
-            and os.path.isdir(os.path.join(output_dir, "train", "negative"))
-            and os.path.isdir(os.path.join(output_dir, "train", "positive"))
+            and os.path.isdir(os.path.join(input_dir, "test", "negative"))
+            and os.path.isdir(os.path.join(input_dir, "test", "positive"))
+            and os.path.isdir(os.path.join(input_dir, "train", "negative"))
+            and os.path.isdir(os.path.join(input_dir, "train", "positive"))
         ):
             raise Exception(
                 "The tweet folder doesn't exist or is corrupted. Please check the folder and try again."
@@ -80,6 +88,7 @@ class DataProcessing:
         self.pos_vocab.add("<UNK>")
         self.neg_vocab.add("<UNK>")
         self.all_vocab.add("<UNK>")
+        self.stemmer = SnowballStemmer("english")
 
     # If the words have more than one capital letter, keep it as is; otherwise, convert to lowercase
     def remain_capital_words(self, content: str) -> str:
@@ -108,6 +117,11 @@ class DataProcessing:
 
         # Need the re to remove links like http, https, www
         content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
+
+        # Stemming
+        content = " ".join(
+            [self.stemmer.stem(word) for word in content.split()]
+        )
 
         return content.strip()
 
@@ -188,6 +202,7 @@ class TfIdfVector:
         self.word2idx = {word: idx for idx, word in enumerate(self.vocabulary)}
         self.idx2word = {idx: word for word, idx in self.word2idx.items()}
         self.vector_length = len(self.vocabulary)
+        self.tfidf_table = np.zeros((len(documents), self.vector_length))
 
     def update_vocabulary(self):
         """Updated the vocabulary based on the documents"""
@@ -196,7 +211,7 @@ class TfIdfVector:
             self.vocabulary.update(tokens)
         self.vocabulary = sorted(self.vocabulary)
 
-    def tf(self, document_tokens: List[str]) -> np.array:
+    def tf(self, document_tokens: List[str]) -> NDArray[np.float64]:
         """Generate TF vector for a document"""
         total_tokens = len(document_tokens)
         count = Counter(document_tokens)
@@ -207,7 +222,7 @@ class TfIdfVector:
             vector[idx] = value
         return vector
 
-    def idf(self, document_tokens: List[str]) -> np.array:
+    def idf(self, document_tokens: List[str]) -> NDArray[np.float64]:
         """Generate IDF vector for a document"""
         vector = np.zeros(self.vector_length)
         for word in document_tokens:
@@ -219,14 +234,15 @@ class TfIdfVector:
             )
         return vector
 
-    def transform(self, document: str) -> np.array:
-        """Transform the document into a TF-IDF vector"""
-        document_tokens = document.split()
-        tf_vector = self.tf(document_tokens)
-        idf_vector = self.idf(document_tokens)
-        tf_idf_vector = tf_vector * idf_vector
-        tf_idf_vector = tf_idf_vector / np.linalg.norm(tf_idf_vector)
-        return tf_idf_vector
+    def transform(self, documents: List[str]):
+        """Transform each document into a TF-IDF vector"""
+        for idx, document in enumerate(documents):
+            document_tokens = document.split()
+            tf_vector = self.tf(document_tokens)
+            idf_vector = self.idf(document_tokens)
+            tf_idf_vector = tf_vector * idf_vector
+            self.tfidf_table[idx] = tf_idf_vector / np.linalg.norm(tf_idf_vector)
+        logger.info(f"Created tf_idf mapping for corpus with shape {self.tfidf_table.shape}")
 
 
 def main():
@@ -240,10 +256,10 @@ def main():
     list_of_files = list_all_files("./cleaned_tweet/train/positive")
     doc_list = [read_file(file) for file in list_of_files]
     tf_idf = TfIdfVector(doc_list)
-    result = tf_idf.transform(doc_list[0])
+    tf_idf.transform(doc_list)
     print(doc_list[0])
-    print("TF-IDF vector shape for the first document:", result.shape)
-    print("TF-IDF vector for the first document:", result)
+    print("TF-IDF vector shape for the first document:", tf_idf.tfidf_table[0].shape)
+    print("TF-IDF vector for the first document:", tf_idf.tfidf_table[0])
 
 
 if __name__ == "__main__":
