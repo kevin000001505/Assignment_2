@@ -415,8 +415,13 @@ def main():
         processor = DataProcessing()
         processor.save_cleaned_file()
         logger.info("Data cleaning completed.")
-    list_of_files = list_all_files("./cleaned_tweet/train/positive")
-    doc_list = [read_file(file) for file in list_of_files]
+    doc_list = []
+    labels = []
+    for lbl in ["positive", "negative"]:
+        list_of_files = list_all_files(f"./cleaned_tweet/train/{lbl}")
+        doc_list.extend([read_file(file) for file in list_of_files])
+        labels.extend([1 if lbl == "positive" else 0] * len(list_of_files))
+
     tf_idf = TfIdfVector(doc_list)
     tf_idf.transform(doc_list)
     print(doc_list[0])
@@ -424,31 +429,48 @@ def main():
     print("TF-IDF vector for the first document:", tf_idf.tfidf_table[0])
 
     # Test FeedForwardNN
+    input_shape = tf_idf.tfidf_table.shape[1]
     nn = FeedForwardNN()
-    nn.layer(10, 8)
+    nn.layer(input_shape, 20)
     nn.layers.append(("sigmoid", None))
-    nn.layer(8, 4)
+    nn.layer(20, 20)
     nn.layers.append(("sigmoid", None))
-    nn.layer(4, 1)
-    input = np.array(
-        [
-            0.1,
-            0.2,
-            0.3,
-            0.4,
-            0.5,
-            0.6,
-            0.7,
-            0.8,
-            0.9,
-            1.0,
-        ]
-    )
-    labels = np.array([1])
-    for epoch in range(20):
-        loss = nn.train(input.reshape(1, -1), labels, learning_rate=0.1)
+    nn.layer(20, 1)
+
+    y = np.array(labels).reshape(-1, 1)
+    X = tf_idf.tfidf_table
+    for epoch in range(30):
+        if epoch < 10:
+            learning_rate = 0.05
+        else:
+            learning_rate = 0.001
+        loss = nn.train(X, y, learning_rate=learning_rate)
         print("Loss:", loss)
 
 
+def test():
+    # Test whether neural network work
+    nn = FeedForwardNN()
+    nn.layer(4, 4)
+    nn.layers.append(("relu", None))
+    nn.layer(4, 4)
+    nn.layers.append(("relu", None))
+    nn.layer(4, 1)
+    X_test = np.array([[0, 0, 1, 2], [0, 1, 1, 2], [1, 0, 1, 2], [1, 1, 1, 2]])
+    y_test = np.array([[0], [0], [0], [1]])
+
+    for epoch in range(30):
+        if epoch < 10:
+            learning_rate = 0.05
+        else:
+            learning_rate = 0.001
+        loss = nn.train(X_test, y_test, learning_rate=learning_rate)
+        print(f"Epoch {epoch}, Loss: {loss}")
+
+    preds = nn.predict(X_test)
+    print(preds.flatten())
+
+
 if __name__ == "__main__":
+    # test()
     main()
