@@ -358,8 +358,10 @@ class FeedForwardNN:
                 # Activation layer
                 if layer[0] == "sigmoid":
                     activation = "sigmoid"
+                    updated_layers.append(("sigmoid", None))
                 elif layer[0] == "relu":
                     activation = "relu"
+                    updated_layers.append(("relu", None))
                 else:
                     activation = "no activation"
             else:
@@ -443,7 +445,7 @@ def main():
         ]
     )
     labels = np.array([1])
-    for epoch in range(10):
+    for epoch in range(20):
         loss = nn.train(input.reshape(1, -1), labels, learning_rate=0.1)
         print("Loss:", loss)
 
