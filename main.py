@@ -302,12 +302,14 @@ class FeedForwardNN:
         return x
 
     def mean_squared_error(self, y_true: np.ndarray, y_pred: np.ndarray):
-        y_pred = self.sigmoid(y_pred)
-        self.backward_loss = self.derivate_mean_squared_error(y_true, y_pred)
-        return np.mean((y_true - y_pred) ** 2)
+        diff = y_pred - y_true
+        # dL/dy_pred to be used at the output layer (chain rule multiplies by sigmoid')
+        self.backward_loss = (2.0 / y_pred.size) * diff
+        return np.mean(diff * diff)
 
     def derivate_mean_squared_error(self, y_true: np.ndarray, y_pred: np.ndarray):
-        return -2 * (y_true - (y_pred))
+        # Same as backward_loss above; provided if you call it directly elsewhere.
+        return (2.0 / y_pred.size) * (y_pred - y_true)
 
     def binary_cross_entropy(self, y_true: np.ndarray, y_pred: np.ndarray):
         # add eps to avoid log(0)
@@ -401,7 +403,8 @@ class FeedForwardNN:
         learning_rate: float = 0.01,
     ):
         result = self.forward(x)
-        loss = self.mean_squared_error(y, result)
+        y_pred = self.sigmoid(result)
+        loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
 
         return loss
@@ -432,18 +435,20 @@ def main():
     input_shape = tf_idf.tfidf_table.shape[1]
     nn = FeedForwardNN()
     nn.layer(input_shape, 20)
-    nn.layers.append(("sigmoid", None))
+    nn.layers.append(("relu", None))
     nn.layer(20, 20)
-    nn.layers.append(("sigmoid", None))
+    nn.layers.append(("relu", None))
     nn.layer(20, 1)
 
     y = np.array(labels).reshape(-1, 1)
     X = tf_idf.tfidf_table
-    for epoch in range(30):
-        if epoch < 10:
+    for epoch in range(1000):
+        if epoch < 500:
+            learning_rate = 0.1
+        elif epoch < 800:
             learning_rate = 0.05
         else:
-            learning_rate = 0.001
+            learning_rate = 0.01
         loss = nn.train(X, y, learning_rate=learning_rate)
         print("Loss:", loss)
 
@@ -452,16 +457,18 @@ def test():
     # Test whether neural network work
     nn = FeedForwardNN()
     nn.layer(4, 4)
-    nn.layers.append(("relu", None))
+    nn.layers.append(("sigmoid", None))
     nn.layer(4, 4)
-    nn.layers.append(("relu", None))
+    nn.layers.append(("sigmoid", None))
     nn.layer(4, 1)
     X_test = np.array([[0, 0, 1, 2], [0, 1, 1, 2], [1, 0, 1, 2], [1, 1, 1, 2]])
     y_test = np.array([[0], [0], [0], [1]])
 
-    for epoch in range(30):
-        if epoch < 10:
-            learning_rate = 0.05
+    for epoch in range(1000):
+        if epoch < 500:
+            learning_rate = 0.1
+        elif epoch < 800:
+            learning_rate = 0.01
         else:
             learning_rate = 0.001
         loss = nn.train(X_test, y_test, learning_rate=learning_rate)
