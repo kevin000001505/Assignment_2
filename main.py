@@ -1,11 +1,14 @@
 import os
 import re
 import json
-import random
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
-from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
+from sklearn.metrics import (
+    confusion_matrix,
+    classification_report,
+    ConfusionMatrixDisplay,
+)
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -330,11 +333,17 @@ class FeedForwardNN:
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
+    def tanh(self, x):
+        return np.tanh(x)
+
     def derivate_sigmoid(self, x):
         return self.sigmoid(x) * (1 - self.sigmoid(x))
 
     def derivate_relu(self, x):
         return np.where(x > 0, 1, 0)
+
+    def derivate_tanh(self, x):
+        return 1 - np.tanh(x) ** 2
 
     def forward(self, x: List[np.ndarray]) -> np.ndarray:
         # for input features
@@ -432,6 +441,9 @@ class FeedForwardNN:
                 elif layer[0] == "relu":
                     activation = "relu"
                     updated_layers.append(("relu", None))
+                elif layer[0] == "tanh":
+                    activation = "tanh"
+                    updated_layers.append(("tanh", None))
                 else:
                     activation = "no activation"
             else:
@@ -444,6 +456,8 @@ class FeedForwardNN:
                         activation_output = self.derivate_sigmoid(z_output)
                     elif activation == "relu":
                         activation_output = self.derivate_relu(z_output)
+                    elif activation == "tanh":
+                        activation_output = self.derivate_tanh(z_output)
                     else:  # No activation
                         activation_output = 1
 
@@ -475,6 +489,7 @@ class FeedForwardNN:
         self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
 
+        return self.loss
         return self.loss
 
     def fit(
@@ -520,7 +535,12 @@ class NeuralNetwork(nn.Module):
         return logits
 
 
-def pytorch_version(tf_idf_train: TfIdfVector, labels: List[int], tf_idf_test:TfIdfVector, log_step:int = 10):
+def pytorch_version(
+    tf_idf_train: TfIdfVector,
+    labels: List[int],
+    tf_idf_test: TfIdfVector,
+    log_step: int = 10,
+):
 
     if torch.backends.mps.is_available():
         logger.info("Using MPS backend")
@@ -554,21 +574,24 @@ def pytorch_version(tf_idf_train: TfIdfVector, labels: List[int], tf_idf_test:Tf
 
     # Set model to evaluation mode
     model.eval()
-    
+
     # Use the no_grad context manager
     with torch.no_grad():
         # Prepare the input data tensor
-        X_test_tensor = torch.tensor(tf_idf_test.tfidf_table, dtype=torch.float32).to(device)
-        
+        X_test_tensor = torch.tensor(tf_idf_test.tfidf_table, dtype=torch.float32).to(
+            device
+        )
+
         # Get the raw model output (logits)
         logits = model(X_test_tensor)
-        
+
         # Convert logits to probabilities and then to 0/1 predictions
         probabilities = torch.sigmoid(logits)
         predictions = (probabilities > 0.5).int()
-        
+
     # Return predictions as a NumPy array for easier use with scikit-learn
     return predictions.cpu().numpy()
+
 
 def main():
     if os.path.isfile("evaluation.txt"):
@@ -596,11 +619,11 @@ def main():
         # nn = FeedForwardNN([input_shape, 20, 20, 1], ["relu", "relu"])
         nn = FeedForwardNN()
         nn.layer(input_shape, 20)
-        nn.layers.append(("sigmoid", None))
+        nn.layers.append(("tanh", None))
         nn.layer(20, 20)
-        nn.layers.append(("sigmoid", None))
+        nn.layers.append(("tanh", None))
         nn.layer(20, 20)
-        nn.layers.append(("sigmoid", None))
+        nn.layers.append(("tanh", None))
         nn.layer(20, 1)
 
         X_train = tf_idf_train.tfidf_table
@@ -640,25 +663,33 @@ def main():
         logger.info(classification_report(y_test, pytorch_preds))
 
         with open("evaluation.txt", "a", encoding="utf-8") as f:
-            f.write(f"Statistics for numpy version using {"stemming" if stemming else "no stemming"} dataset\n")
+            f.write(
+                f"Statistics for numpy version using {"stemming" if stemming else "no stemming"} dataset\n"
+            )
             f.write("Classification Report:\n")
             f.write(str(classification_report(y_test, numpy_preds)))
             f.write("Confusion Matrix:\n")
             cm = confusion_matrix(y_test, numpy_preds)
-            f.write(str(cm) + '\n')
+            f.write(str(cm) + "\n")
             disp = ConfusionMatrixDisplay(confusion_matrix=cm)
             disp.plot()
-            plt.savefig(f'confusion_matrix_numpy_{"stem" if stemming else "no_stem"}.png')
+            plt.savefig(
+                f'confusion_matrix_numpy_{"stem" if stemming else "no_stem"}.png'
+            )
 
-            f.write(f"Statistics for pytorch version using {"stemming" if stemming else "no stemming"} dataset\n")
+            f.write(
+                f"Statistics for pytorch version using {"stemming" if stemming else "no stemming"} dataset\n"
+            )
             f.write("Classification Report:\n")
             f.write(str(classification_report(y_test, pytorch_preds)))
             f.write("Confusion Matrix:\n")
             cm = confusion_matrix(y_test, pytorch_preds)
-            f.write(str(cm) + '\n')
+            f.write(str(cm) + "\n")
             disp = ConfusionMatrixDisplay(confusion_matrix=cm)
             disp.plot()
-            plt.savefig(f'confusion_matrix_pytorch_{"stem" if stemming else "no_stem"}.png')
+            plt.savefig(
+                f'confusion_matrix_pytorch_{"stem" if stemming else "no_stem"}.png'
+            )
 
             f.write("\n----------------------------\n")
 
