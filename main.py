@@ -5,7 +5,7 @@ import random
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -475,13 +475,13 @@ class FeedForwardNN:
         self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
 
-        return self.self.loss
+        return self.loss
 
     def fit(
         self,
         x: np.ndarray,
         y: np.ndarray,
-        training_plan: List = [(500, 0.1), (800, 0.01), (1000, 0.001)],
+        training_plan: List = [(200, 1e-4), (350, 1e-5), (500, 1e-6)],
         log_step: int = 10,
     ):
         logger.info(
@@ -520,7 +520,7 @@ class NeuralNetwork(nn.Module):
         return logits
 
 
-def pytorch_version(tf_idf: TfIdfVector, labels: List[int], log_step:int = 10):
+def pytorch_version(tf_idf_train: TfIdfVector, labels: List[int], tf_idf_test:TfIdfVector, log_step:int = 10):
 
     if torch.backends.mps.is_available():
         logger.info("Using MPS backend")
@@ -532,14 +532,14 @@ def pytorch_version(tf_idf: TfIdfVector, labels: List[int], log_step:int = 10):
         logger.info("Using CPU backend")
         device = "cpu"
 
-    print("Using device:", device)
-    input_shape = tf_idf.tfidf_table.shape[1]
+    logger.info(f"Using device: {device}")
+    input_shape = tf_idf_train.tfidf_table.shape[1]
 
     model = NeuralNetwork(input_shape).to(device)
     mse_loss = nn.MSELoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.0001)
+    optimizer = optim.SGD(model.parameters(), lr=1e-4)
 
-    x = torch.tensor(tf_idf.tfidf_table, dtype=torch.float32).to(device)
+    x = torch.tensor(tf_idf_train.tfidf_table, dtype=torch.float32).to(device)
     y = torch.tensor(labels, dtype=torch.float32).reshape(-1, 1).to(device)
 
     # Training step
@@ -552,8 +552,27 @@ def pytorch_version(tf_idf: TfIdfVector, labels: List[int], log_step:int = 10):
         if epoch % log_step == 0:
             logger.info(f"Epoch {epoch}, Loss: {loss.item()}")
 
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Use the no_grad context manager
+    with torch.no_grad():
+        # Prepare the input data tensor
+        X_test_tensor = torch.tensor(tf_idf_test.tfidf_table, dtype=torch.float32).to(device)
+        
+        # Get the raw model output (logits)
+        logits = model(X_test_tensor)
+        
+        # Convert logits to probabilities and then to 0/1 predictions
+        probabilities = torch.sigmoid(logits)
+        predictions = (probabilities > 0.5).int()
+        
+    # Return predictions as a NumPy array for easier use with scikit-learn
+    return predictions.cpu().numpy()
 
 def main():
+    if os.path.isfile("evaluation.txt"):
+        os.remove("evaluation.txt")
     for stemming in [False, True]:
         processor = DataProcessing(stemming=stemming)
         if not os.listdir(os.path.join(processor.output_dir, "train/positive")):
@@ -605,17 +624,43 @@ def main():
         X_test = tf_idf_test.tfidf_table
         y_test = np.array(labels_test).reshape(-1, 1)
 
-        predictions = nn.predict(X_test)
-        accuracy = accuracy_score(y_test, predictions)
-
-        logger.info(f"\nAccuracy on the test set: {accuracy:.4f}")
-        logger.info("\nClassification Report:")
-        logger.info(classification_report(y_test, predictions))
+        numpy_preds = nn.predict(X_test)
+        logger.info("Confusion matrix:")
+        logger.info(confusion_matrix(y_test, numpy_preds))
+        logger.info("Classification Report:")
+        logger.info(classification_report(y_test, numpy_preds))
 
         logger.info(
             f"Training pytorch version for {"stemming" if stemming else "no stemming"} dataset"
         )
-        pytorch_version(tf_idf_train, labels_train)
+        pytorch_preds = pytorch_version(tf_idf_train, labels_train, tf_idf_test)
+        logger.info("Confusion matrix:")
+        logger.info(confusion_matrix(y_test, pytorch_preds))
+        logger.info("Classification Report:")
+        logger.info(classification_report(y_test, pytorch_preds))
+
+        with open("evaluation.txt", "a", encoding="utf-8") as f:
+            f.write(f"Statistics for numpy version using {"stemming" if stemming else "no stemming"} dataset\n")
+            f.write("Classification Report:\n")
+            f.write(str(classification_report(y_test, numpy_preds)))
+            f.write("Confusion Matrix:\n")
+            cm = confusion_matrix(y_test, numpy_preds)
+            f.write(str(cm) + '\n')
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+            disp.plot()
+            plt.savefig(f'confusion_matrix_numpy_{"stem" if stemming else "no_stem"}.png')
+
+            f.write(f"Statistics for pytorch version using {"stemming" if stemming else "no stemming"} dataset\n")
+            f.write("Classification Report:\n")
+            f.write(str(classification_report(y_test, pytorch_preds)))
+            f.write("Confusion Matrix:\n")
+            cm = confusion_matrix(y_test, pytorch_preds)
+            f.write(str(cm) + '\n')
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+            disp.plot()
+            plt.savefig(f'confusion_matrix_pytorch_{"stem" if stemming else "no_stem"}.png')
+
+            f.write("\n----------------------------\n")
 
 
 def test():
