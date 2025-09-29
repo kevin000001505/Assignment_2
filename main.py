@@ -509,7 +509,7 @@ class NeuralNetwork(nn.Module):
         return logits
 
 
-def pytorch_version(tf_idf: TfIdfVector, labels: List[int]):
+def pytorch_version(tf_idf: TfIdfVector, labels: List[int], log_step:int = 10):
 
     if torch.backends.mps.is_available():
         logger.info("Using MPS backend")
@@ -532,13 +532,14 @@ def pytorch_version(tf_idf: TfIdfVector, labels: List[int]):
     y = torch.tensor(labels, dtype=torch.float32).reshape(-1, 1).to(device)
 
     # Training step
-    for epoch in range(500):
+    for epoch in range(1, 501):
         optimizer.zero_grad()
         outputs = model(x)
         loss = mse_loss(outputs, y)
         loss.backward()
         optimizer.step()
-        logger.info(f"Epoch {epoch+1}, Loss: {loss.item()}")
+        if epoch % log_step == 0:
+            logger.info(f"Epoch {epoch}, Loss: {loss.item()}")
 
 
 def main():
