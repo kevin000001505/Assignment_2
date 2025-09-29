@@ -464,13 +464,13 @@ class FeedForwardNN:
         self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
 
-        return loss
+        return self.loss
 
     def fit(
         self,
         x: np.ndarray,
         y: np.ndarray,
-        training_plan: List = [(500, 0.0001), (800, 0.00001), (1000, 0.000001)],
+        training_plan: List = [(500, 0.1), (800, 0.01), (1000, 0.001)],
         log_step: int = 10,
     ):
         logger.info(
@@ -487,7 +487,7 @@ class FeedForwardNN:
             self.train(x, y, training_plan[i][1])
             if epoch % log_step == 0:
                 logger.info(
-                    f"Epoch: {epoch} - Loss: {loss} - Learning rate: {training_plan[i][1]}"
+                    f"Epoch: {epoch} - Loss: {self.loss} - Learning rate: {training_plan[i][1]}"
                 )
 
 
@@ -538,7 +538,7 @@ def pytorch_version(tf_idf: TfIdfVector, labels: List[int]):
         loss = mse_loss(outputs, y)
         loss.backward()
         optimizer.step()
-        print(f"Epoch {epoch+1}, Loss: {loss.item()}")
+        logger.info(f"Epoch {epoch+1}, Loss: {loss.item()}")
 
 
 def main():
@@ -591,6 +591,7 @@ def main():
         logger.info("\nClassification Report:")
         logger.info(classification_report(y_test, predictions))
         
+        logger.info(f"Training pytorch version for {"stemming" if stemming else "no stemming"} dataset")
         pytorch_version(tf_idf_train, labels_train)
 
 
