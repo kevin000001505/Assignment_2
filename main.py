@@ -247,9 +247,43 @@ class TfIdfVector:
 
 
 class FeedForwardNN:
-    def __init__(self):
+    def __init__(self, layer_sizes: List[int], activations: List):
         self.layers = []
+        if layer_sizes:
+            assert len(layer_sizes) - 2 == len(activations), \
+            "The number of activations must be two less than the number of layer sizes."
+
+            for i in range(len(layer_sizes) - 1):
+                input_size = layer_sizes[i]
+                output_size = layer_sizes[i+1]
+
+                # Create and add the dense layer (weights and biases)
+                weight = np.random.rand(input_size, output_size) * 0.1
+                bias = np.zeros((1, output_size)) * 0.1
+                self.layers.append((weight, bias))
+
+                # Add an activation function only for hidden layers
+                if i < len(layer_sizes) - 2:
+                    self.layers.append((activations[i], None))
+            self.model_check()
         self.backward_loss = None
+
+    def model_check(self):
+        logger.info("Performing integrity check on model layers")
+        for idx, layer in enumerate(self.layers):
+            if idx % 2 == 0:
+                if isinstance(layer[0], np.ndarray):
+                    logger.info(f"Layer {idx} shape: {layer[0].shape}")
+                    if idx < len(self.layers) - 1:
+                        assert layer[0].shape[1] == self.layers[idx+2][0].shape[0],\
+                            f"Output layer {idx} size({layer[0].shape[1]}) must match input layer {idx+2} size({self.layers[idx+2].shape[0]})"
+                else:
+                    raise Exception(f"Layer {idx} should contain a weight matrix, but instead was\n{layer}")
+            if idx % 2 != 0:
+                if isinstance(layer[0], str):
+                    logger.info(f"Layer {idx} activation function {layer[0]}")
+                else:
+                    raise Exception(f"Layer {idx} should contain an activation function, but instead was\n{layer}")
 
     def layer(self, input_size: int, output_size: int):
         weight = np.random.rand(input_size, output_size) * 0.1
@@ -408,6 +442,24 @@ class FeedForwardNN:
         self.backward(learning_rate)
 
         return loss
+    
+    def fit(self,
+            x: np.ndarray,
+            y: np.ndarray,
+            training_plan: List = [(500, 0.1), (800, 0.05), (1000, 0.01)],
+            log_step: int = 10):
+        logger.info(f"Starting training process with\n\
+                    X: {x.shape}\n\
+                    y: {y.shape}\n\
+                    Learning rates: {training_plan}\n\
+                    Log step: {log_step}")
+        i = 0
+        for epoch in range(1, training_plan[-1][0] + 1):
+            if epoch > training_plan[i][0]:
+                i += 1
+            loss = self.train(x, y, training_plan[i][1])
+            if epoch % log_step == 0:
+                logger.info(f"Epoch: {epoch} - Loss: {loss} - Learning rate: {training_plan[i][1]}")
 
 
 def main():
@@ -432,25 +484,16 @@ def main():
     print("TF-IDF vector for the first document:", tf_idf.tfidf_table[0])
 
     # Test FeedForwardNN
+    logger.info("Test FFNN")
     input_shape = tf_idf.tfidf_table.shape[1]
-    nn = FeedForwardNN()
-    nn.layer(input_shape, 20)
-    nn.layers.append(("relu", None))
-    nn.layer(20, 20)
-    nn.layers.append(("relu", None))
-    nn.layer(20, 1)
+    nn = FeedForwardNN(
+        [input_shape, 20, 20, 1], 
+        ["relu", "relu"]
+    )
 
     y = np.array(labels).reshape(-1, 1)
     X = tf_idf.tfidf_table
-    for epoch in range(1000):
-        if epoch < 500:
-            learning_rate = 0.1
-        elif epoch < 800:
-            learning_rate = 0.05
-        else:
-            learning_rate = 0.01
-        loss = nn.train(X, y, learning_rate=learning_rate)
-        print("Loss:", loss)
+    nn.fit(X, y)
 
 
 def test():
