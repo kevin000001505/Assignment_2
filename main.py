@@ -13,6 +13,7 @@ from typing import List, Dict, Tuple, Union
 from bs4 import BeautifulSoup as bs
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import pandas as pd
 import logging
 
@@ -265,13 +266,14 @@ class TfIdfVector:
 class FeedForwardNN:
     def __init__(self, layer_sizes: List[int] = [], activations: List = []):
         self.layers = []
-        if len(layer_sizes) > 0:
-            assert len(layer_sizes) - 2 == len(activations), \
-            "The number of activations must be two less than the number of layer sizes."
+        if layer_sizes:
+            assert len(layer_sizes) - 2 == len(
+                activations
+            ), "The number of activations must be two less than the number of layer sizes."
 
             for i in range(len(layer_sizes) - 1):
                 input_size = layer_sizes[i]
-                output_size = layer_sizes[i+1]
+                output_size = layer_sizes[i + 1]
 
                 # Create and add the dense layer (weights and biases)
                 weight = np.random.rand(input_size, output_size) * 0.1
@@ -291,15 +293,20 @@ class FeedForwardNN:
                 if isinstance(layer[0], np.ndarray):
                     logger.info(f"Layer {idx} shape: {layer[0].shape}")
                     if idx < len(self.layers) - 1:
-                        assert layer[0].shape[1] == self.layers[idx+2][0].shape[0],\
-                            f"Output layer {idx} size({layer[0].shape[1]}) must match input layer {idx+2} size({self.layers[idx+2].shape[0]})"
+                        assert (
+                            layer[0].shape[1] == self.layers[idx + 2][0].shape[0]
+                        ), f"Output layer {idx} size({layer[0].shape[1]}) must match input layer {idx+2} size({self.layers[idx+2].shape[0]})"
                 else:
-                    raise Exception(f"Layer {idx} should contain a weight matrix, but instead was\n{layer}")
+                    raise Exception(
+                        f"Layer {idx} should contain a weight matrix, but instead was\n{layer}"
+                    )
             if idx % 2 != 0:
                 if isinstance(layer[0], str):
                     logger.info(f"Layer {idx} activation function {layer[0]}")
                 else:
-                    raise Exception(f"Layer {idx} should contain an activation function, but instead was\n{layer}")
+                    raise Exception(
+                        f"Layer {idx} should contain an activation function, but instead was\n{layer}"
+                    )
 
     def layer(self, input_size: int, output_size: int):
         weight = np.random.rand(input_size, output_size) * 0.1
@@ -343,7 +350,7 @@ class FeedForwardNN:
                 store = [weight, bias, x]
 
                 # This will output the z value before activation
-                z = np.dot(x, weight) + bias
+                z = x @ weight + bias
                 store.append(z)
 
                 # This will store the z value before activation for use in backpropagation
@@ -456,24 +463,82 @@ class FeedForwardNN:
         y_pred = self.sigmoid(result)
         self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
-    
-    def fit(self,
-            x: np.ndarray,
-            y: np.ndarray,
-            training_plan: List = [(500, 0.1), (800, 0.05), (1000, 0.01)],
-            log_step: int = 10):
-        logger.info(f"Starting training process with\n\
+
+        return loss
+
+    def fit(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        training_plan: List = [(500, 0.0001), (800, 0.00001), (1000, 0.000001)],
+        log_step: int = 10,
+    ):
+        logger.info(
+            f"Starting training process with\n\
                     X: {x.shape}\n\
                     y: {y.shape}\n\
                     Learning rates: {training_plan}\n\
-                    Log step: {log_step}")
+                    Log step: {log_step}"
+        )
         i = 0
         for epoch in range(1, training_plan[-1][0] + 1):
             if epoch > training_plan[i][0]:
                 i += 1
             self.train(x, y, training_plan[i][1])
             if epoch % log_step == 0:
-                logger.info(f"Epoch: {epoch} - Loss: {self.loss} - Learning rate: {training_plan[i][1]}")
+                logger.info(
+                    f"Epoch: {epoch} - Loss: {loss} - Learning rate: {training_plan[i][1]}"
+                )
+
+
+class NeuralNetwork(nn.Module):
+    def __init__(self, input_shape: int):
+        super().__init__()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_shape, 20),
+            nn.ReLU(),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.Linear(20, 1),
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
+def pytorch_version(tf_idf: TfIdfVector, labels: List[int]):
+
+    if torch.backends.mps.is_available():
+        logger.info("Using MPS backend")
+        device = "mps"
+    elif torch.cuda.is_available():
+        logger.info("Using CUDA backend")
+        device = "cuda"
+    else:
+        logger.info("Using CPU backend")
+        device = "cpu"
+
+    print("Using device:", device)
+    input_shape = tf_idf.tfidf_table.shape[1]
+
+    model = NeuralNetwork(input_shape).to(device)
+    mse_loss = nn.MSELoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.0001)
+
+    x = torch.tensor(tf_idf.tfidf_table, dtype=torch.float32).to(device)
+    y = torch.tensor(labels, dtype=torch.float32).reshape(-1, 1).to(device)
+
+    # Training step
+    for epoch in range(500):
+        optimizer.zero_grad()
+        outputs = model(x)
+        loss = mse_loss(outputs, y)
+        loss.backward()
+        optimizer.step()
+        print(f"Epoch {epoch+1}, Loss: {loss.item()}")
 
 
 def main():
@@ -525,6 +590,8 @@ def main():
         logger.info(f"\nAccuracy on the test set: {accuracy:.4f}")
         logger.info("\nClassification Report:")
         logger.info(classification_report(y_test, predictions))
+        
+        pytorch_version(tf_idf_train, labels_train)
 
 
 def test():
