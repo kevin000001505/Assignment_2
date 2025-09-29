@@ -1,6 +1,7 @@
 *.ipynb
 *.pdf
 *.egg-info
+*.json
 tweet
 .venv
 __pycache__/

@@ -5,6 +5,7 @@ import random
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
+from sklearn.metrics import accuracy_score, classification_report
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -61,7 +62,7 @@ class DataProcessing:
     to see if the dataset exists or not
     """
 
-    def __init__(self, input_dir: str = "./tweet", output_dir: str = "./cleaned_tweet"):
+    def __init__(self, input_dir: str = "./tweet", output_dir: str = "./cleaned_tweet", stemming: bool = False):
         logger = logging.getLogger(__name__)
         # Check if the tweet folder exists
         if not (
@@ -75,7 +76,9 @@ class DataProcessing:
                 "The tweet folder doesn't exist or is corrupted. Please check the folder and try again."
             )
 
-        logger.info("Creating cleaned_tweet folder structure")
+        logger.info(f"Creating cleaned_tweet/{"stem" if stemming else "no_stem"} folder structure")
+        self.stemming = stemming
+        output_dir = os.path.join(output_dir, "stem" if stemming else "no_stem")
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(os.path.join(output_dir, "test", "negative"), exist_ok=True)
         os.makedirs(os.path.join(output_dir, "test", "positive"), exist_ok=True)
@@ -83,6 +86,7 @@ class DataProcessing:
         os.makedirs(os.path.join(output_dir, "train", "positive"), exist_ok=True)
         self.input_dir = input_dir
         self.output_dir = output_dir
+        self.vocab = "vocab_stem.json" if stemming else "vocab_no_stem.json"
         self.pos_vocab = set()
         self.neg_vocab = set()
         self.all_vocab = set()
@@ -120,7 +124,8 @@ class DataProcessing:
         content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
 
         # Stemming
-        content = " ".join([self.stemmer.stem(word) for word in content.split()])
+        if self.stemming:
+            content = " ".join([self.stemmer.stem(word) for word in content.split()])
 
         return content.strip()
 
@@ -162,8 +167,8 @@ class DataProcessing:
         neg_word2idx = {word: idx for idx, word in enumerate(self.neg_vocab)}
         logger.info("Created word-to-id mapping for entire vocabulary")
 
-        # Write the entire vocabulary including the word-to-id and id-to-word mappings to vocab.json
-        with open("vocab.json", "w", encoding="utf-8") as f:
+        # Write the entire vocabulary including the word-to-id and id-to-word mappings to vocabulary file
+        with open(self.vocab, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "positive": {
@@ -190,14 +195,22 @@ class DataProcessing:
                 ensure_ascii=False,
                 indent=2,
             )
-        logger.info("Finished writting to vocab.json")
+        logger.info(f"Finished writting to {self.vocab}")
+        logger.info(f"Data cleaning completed. Check {self.output_dir} for result")
 
 
 class TfIdfVector:
-    def __init__(self, documents: List[str]):
+    def __init__(self, documents: List[str], train_set = None):
         self.documents = documents
-        self.vocabulary = set()
-        self.update_vocabulary()
+        # For test set, only include words presented in training set
+        self.test_mode = False
+        if train_set:
+            self.vocabulary = train_set
+            self.test_mode = True
+            logger.info("Creating TF-IDF for documents in test mode, only including vocabulary in train set")
+        else:
+            self.vocabulary = set()
+            self.update_vocabulary()
         self.word2idx = {word: idx for idx, word in enumerate(self.vocabulary)}
         self.idx2word = {idx: word for word, idx in self.word2idx.items()}
         self.vector_length = len(self.vocabulary)
@@ -209,6 +222,7 @@ class TfIdfVector:
             tokens = document.split()
             self.vocabulary.update(tokens)
         self.vocabulary = sorted(self.vocabulary)
+        logger.info(f"Built vocabulary set for {len(self.documents)} documents")
 
     def tf(self, document_tokens: List[str]) -> NDArray[np.float64]:
         """Generate TF vector for a document"""
@@ -233,10 +247,12 @@ class TfIdfVector:
             )
         return vector
 
-    def transform(self, documents: List[str]):
+    def transform(self):
         """Transform each document into a TF-IDF vector"""
-        for idx, document in enumerate(documents):
+        for idx, document in enumerate(self.documents):
             document_tokens = document.split()
+            # Only include tokens in vocab for test mode
+            document_tokens = [token for token in document_tokens if token in self.vocabulary]
             tf_vector = self.tf(document_tokens)
             idf_vector = self.idf(document_tokens)
             tf_idf_vector = tf_vector * idf_vector
@@ -247,9 +263,9 @@ class TfIdfVector:
 
 
 class FeedForwardNN:
-    def __init__(self, layer_sizes: List[int], activations: List):
+    def __init__(self, layer_sizes: List[int] = [], activations: List = []):
         self.layers = []
-        if layer_sizes:
+        if len(layer_sizes) > 0:
             assert len(layer_sizes) - 2 == len(activations), \
             "The number of activations must be two less than the number of layer sizes."
 
@@ -438,10 +454,8 @@ class FeedForwardNN:
     ):
         result = self.forward(x)
         y_pred = self.sigmoid(result)
-        loss = self.mean_squared_error(y, y_pred)
+        self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
-
-        return loss
     
     def fit(self,
             x: np.ndarray,
@@ -457,43 +471,60 @@ class FeedForwardNN:
         for epoch in range(1, training_plan[-1][0] + 1):
             if epoch > training_plan[i][0]:
                 i += 1
-            loss = self.train(x, y, training_plan[i][1])
+            self.train(x, y, training_plan[i][1])
             if epoch % log_step == 0:
-                logger.info(f"Epoch: {epoch} - Loss: {loss} - Learning rate: {training_plan[i][1]}")
+                logger.info(f"Epoch: {epoch} - Loss: {self.loss} - Learning rate: {training_plan[i][1]}")
 
 
 def main():
-    # Did you git pull?
-    if os.path.exists("cleaned_tweet"):
-        logger.info("cleaned_tweet folder already exists. Skipping data cleaning.")
-    else:
-        processor = DataProcessing()
-        processor.save_cleaned_file()
-        logger.info("Data cleaning completed.")
-    doc_list = []
-    labels = []
-    for lbl in ["positive", "negative"]:
-        list_of_files = list_all_files(f"./cleaned_tweet/train/{lbl}")
-        doc_list.extend([read_file(file) for file in list_of_files])
-        labels.extend([1 if lbl == "positive" else 0] * len(list_of_files))
+    for stemming in [False, True]:
+        processor = DataProcessing(stemming=stemming)
+        if not os.listdir(os.path.join(processor.output_dir, "train/positive")):
+            processor.save_cleaned_file()
+        else:
+            logger.info(f"Cleaned data for {"stemmed" if stemming else "non stemmed"} tweet exists. Skipping data cleaning")
+        doc_list_train = []
+        labels_train = []
+        for lbl in ["positive", "negative"]:
+            list_of_files = list_all_files(f"{processor.output_dir}/train/{lbl}")
+            doc_list_train.extend([read_file(file) for file in list_of_files])
+            labels_train.extend([1 if lbl == "positive" else 0] * len(list_of_files))
 
-    tf_idf = TfIdfVector(doc_list)
-    tf_idf.transform(doc_list)
-    print(doc_list[0])
-    print("TF-IDF vector shape for the first document:", tf_idf.tfidf_table[0].shape)
-    print("TF-IDF vector for the first document:", tf_idf.tfidf_table[0])
+        tf_idf_train = TfIdfVector(doc_list_train)
+        tf_idf_train.transform()
 
-    # Test FeedForwardNN
-    logger.info("Test FFNN")
-    input_shape = tf_idf.tfidf_table.shape[1]
-    nn = FeedForwardNN(
-        [input_shape, 20, 20, 1], 
-        ["relu", "relu"]
-    )
+        # Train FeedForwardNN
+        input_shape = tf_idf_train.tfidf_table.shape[1]
+        nn = FeedForwardNN(
+            [input_shape, 20, 20, 1], 
+            ["relu", "relu"]
+        )
 
-    y = np.array(labels).reshape(-1, 1)
-    X = tf_idf.tfidf_table
-    nn.fit(X, y)
+        X_train = tf_idf_train.tfidf_table
+        y_train = np.array(labels_train).reshape(-1, 1)
+        nn.fit(X_train, y_train)
+        logger.info(f"Training loss with TF-IDF and {"stemming" if stemming else "no stemming"}: {nn.loss}")
+
+        # Test model on test set
+        doc_list_test = []
+        labels_test = []
+        for lbl in ["positive", "negative"]:
+            list_of_files = list_all_files(f"{processor.output_dir}/test/{lbl}")
+            doc_list_test.extend([read_file(file) for file in list_of_files])
+            labels_test.extend([1 if lbl == "positive" else 0] * len(list_of_files))
+
+        tf_idf_test = TfIdfVector(doc_list_test, tf_idf_train.vocabulary)
+        tf_idf_test.transform()
+        tf_idf_train.vocabulary
+        X_test = tf_idf_test.tfidf_table
+        y_test = np.array(labels_test).reshape(-1, 1)
+
+        predictions = nn.predict(X_test)
+        accuracy = accuracy_score(y_test, predictions)
+
+        logger.info(f"\nAccuracy on the test set: {accuracy:.4f}")
+        logger.info("\nClassification Report:")
+        logger.info(classification_report(y_test, predictions))
 
 
 def test():
