@@ -1,7 +1,9 @@
 import os
 import re
 import json
-import random
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
@@ -10,9 +12,6 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from typing import List, Dict, Tuple, Union
 from bs4 import BeautifulSoup as bs
-import torch
-import torch.nn as nn
-import pandas as pd
 import logging
 
 if os.path.exists("main.log"):
@@ -293,7 +292,7 @@ class FeedForwardNN:
                 store = [weight, bias, x]
 
                 # This will output the z value before activation
-                z = np.dot(x, weight) + bias
+                z = x @ weight + bias
                 store.append(z)
 
                 # This will store the z value before activation for use in backpropagation
@@ -410,6 +409,56 @@ class FeedForwardNN:
         return loss
 
 
+class NeuralNetwork(nn.Module):
+    def __init__(self, input_shape: int):
+        super().__init__()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_shape, 20),
+            nn.ReLU(),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.Linear(20, 20),
+            nn.ReLU(),
+            nn.Linear(20, 1),
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+
+def pytorch_version(tf_idf: TfIdfVector, labels: List[int]):
+
+    if torch.backends.mps.is_available():
+        logger.info("Using MPS backend")
+        device = "mps"
+    elif torch.cuda.is_available():
+        logger.info("Using CUDA backend")
+        device = "cuda"
+    else:
+        logger.info("Using CPU backend")
+        device = "cpu"
+
+    print("Using device:", device)
+    input_shape = tf_idf.tfidf_table.shape[1]
+
+    model = NeuralNetwork(input_shape).to(device)
+    mse_loss = nn.MSELoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.0001)
+
+    x = torch.tensor(tf_idf.tfidf_table, dtype=torch.float32).to(device)
+    y = torch.tensor(labels, dtype=torch.float32).reshape(-1, 1).to(device)
+
+    # Training step
+    for epoch in range(500):
+        optimizer.zero_grad()
+        outputs = model(x)
+        loss = mse_loss(outputs, y)
+        loss.backward()
+        optimizer.step()
+        print(f"Epoch {epoch+1}, Loss: {loss.item()}")
+
+
 def main():
     # Did you git pull?
     if os.path.exists("cleaned_tweet"):
@@ -433,48 +482,54 @@ def main():
 
     # Test FeedForwardNN
     input_shape = tf_idf.tfidf_table.shape[1]
-    nn = FeedForwardNN()
-    nn.layer(input_shape, 20)
-    nn.layers.append(("relu", None))
-    nn.layer(20, 20)
-    nn.layers.append(("relu", None))
-    nn.layer(20, 1)
+    nn_customer = FeedForwardNN()
+    nn_customer.layer(input_shape, 20)
+    nn_customer.layers.append(("relu", None))
+    nn_customer.layer(20, 20)
+    nn_customer.layers.append(("relu", None))
+    nn_customer.layer(20, 20)
+    nn_customer.layers.append(("relu", None))
+    nn_customer.layer(20, 1)
 
     y = np.array(labels).reshape(-1, 1)
     X = tf_idf.tfidf_table
-    for epoch in range(1000):
-        if epoch < 500:
-            learning_rate = 0.1
-        elif epoch < 800:
-            learning_rate = 0.05
+    for epoch in range(500):
+        if epoch < 300:
+            learning_rate = 0.0001
+        elif epoch < 400:
+            learning_rate = 0.00001
         else:
-            learning_rate = 0.01
-        loss = nn.train(X, y, learning_rate=learning_rate)
+            learning_rate = 0.000001
+        loss = nn_customer.train(X, y, learning_rate=learning_rate)
         print("Loss:", loss)
+
+    logger.info("Training using custom Pytorch implementation")
+    print("Starting Pytorch version")
+    pytorch_version(tf_idf, labels)
 
 
 def test():
     # Test whether neural network work
-    nn = FeedForwardNN()
-    nn.layer(4, 4)
-    nn.layers.append(("sigmoid", None))
-    nn.layer(4, 4)
-    nn.layers.append(("sigmoid", None))
-    nn.layer(4, 1)
+    nn_customer = FeedForwardNN()
+    nn_customer.layer(4, 4)
+    nn_customer.layers.append(("sigmoid", None))
+    nn_customer.layer(4, 4)
+    nn_customer.layers.append(("sigmoid", None))
+    nn_customer.layer(4, 1)
     X_test = np.array([[0, 0, 1, 2], [0, 1, 1, 2], [1, 0, 1, 2], [1, 1, 1, 2]])
     y_test = np.array([[0], [0], [0], [1]])
 
-    for epoch in range(1000):
-        if epoch < 500:
+    for epoch in range(10):
+        if epoch < 5:
             learning_rate = 0.1
-        elif epoch < 800:
+        elif epoch < 8:
             learning_rate = 0.01
         else:
             learning_rate = 0.001
-        loss = nn.train(X_test, y_test, learning_rate=learning_rate)
+        loss = nn_customer.train(X_test, y_test, learning_rate=learning_rate)
         print(f"Epoch {epoch}, Loss: {loss}")
 
-    preds = nn.predict(X_test)
+    preds = nn_customer.predict(X_test)
     print(preds.flatten())
 
 
