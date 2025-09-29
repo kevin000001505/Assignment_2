@@ -63,7 +63,12 @@ class DataProcessing:
     to see if the dataset exists or not
     """
 
-    def __init__(self, input_dir: str = "./tweet", output_dir: str = "./cleaned_tweet", stemming: bool = False):
+    def __init__(
+        self,
+        input_dir: str = "./tweet",
+        output_dir: str = "./cleaned_tweet",
+        stemming: bool = False,
+    ):
         logger = logging.getLogger(__name__)
         # Check if the tweet folder exists
         if not (
@@ -77,7 +82,9 @@ class DataProcessing:
                 "The tweet folder doesn't exist or is corrupted. Please check the folder and try again."
             )
 
-        logger.info(f"Creating cleaned_tweet/{"stem" if stemming else "no_stem"} folder structure")
+        logger.info(
+            f"Creating cleaned_tweet/{"stem" if stemming else "no_stem"} folder structure"
+        )
         self.stemming = stemming
         output_dir = os.path.join(output_dir, "stem" if stemming else "no_stem")
         os.makedirs(output_dir, exist_ok=True)
@@ -201,14 +208,16 @@ class DataProcessing:
 
 
 class TfIdfVector:
-    def __init__(self, documents: List[str], train_set = None):
+    def __init__(self, documents: List[str], train_set=None):
         self.documents = documents
         # For test set, only include words presented in training set
         self.test_mode = False
         if train_set:
             self.vocabulary = train_set
             self.test_mode = True
-            logger.info("Creating TF-IDF for documents in test mode, only including vocabulary in train set")
+            logger.info(
+                "Creating TF-IDF for documents in test mode, only including vocabulary in train set"
+            )
         else:
             self.vocabulary = set()
             self.update_vocabulary()
@@ -253,7 +262,9 @@ class TfIdfVector:
         for idx, document in enumerate(self.documents):
             document_tokens = document.split()
             # Only include tokens in vocab for test mode
-            document_tokens = [token for token in document_tokens if token in self.vocabulary]
+            document_tokens = [
+                token for token in document_tokens if token in self.vocabulary
+            ]
             tf_vector = self.tf(document_tokens)
             idf_vector = self.idf(document_tokens)
             tf_idf_vector = tf_vector * idf_vector
@@ -464,7 +475,7 @@ class FeedForwardNN:
         self.loss = self.mean_squared_error(y, y_pred)
         self.backward(learning_rate)
 
-        return self.loss
+        return self.self.loss
 
     def fit(
         self,
@@ -548,7 +559,9 @@ def main():
         if not os.listdir(os.path.join(processor.output_dir, "train/positive")):
             processor.save_cleaned_file()
         else:
-            logger.info(f"Cleaned data for {"stemmed" if stemming else "non stemmed"} tweet exists. Skipping data cleaning")
+            logger.info(
+                f"Cleaned data for {"stemmed" if stemming else "non stemmed"} tweet exists. Skipping data cleaning"
+            )
         doc_list_train = []
         labels_train = []
         for lbl in ["positive", "negative"]:
@@ -561,15 +574,22 @@ def main():
 
         # Train FeedForwardNN
         input_shape = tf_idf_train.tfidf_table.shape[1]
-        nn = FeedForwardNN(
-            [input_shape, 20, 20, 1], 
-            ["relu", "relu"]
-        )
+        # nn = FeedForwardNN([input_shape, 20, 20, 1], ["relu", "relu"])
+        nn = FeedForwardNN()
+        nn.layer(input_shape, 20)
+        nn.layers.append(("sigmoid", None))
+        nn.layer(20, 20)
+        nn.layers.append(("sigmoid", None))
+        nn.layer(20, 20)
+        nn.layers.append(("sigmoid", None))
+        nn.layer(20, 1)
 
         X_train = tf_idf_train.tfidf_table
         y_train = np.array(labels_train).reshape(-1, 1)
         nn.fit(X_train, y_train)
-        logger.info(f"Training loss with TF-IDF and {"stemming" if stemming else "no stemming"}: {nn.loss}")
+        logger.info(
+            f"Training loss with TF-IDF and {"stemming" if stemming else "no stemming"}: {nn.loss}"
+        )
 
         # Test model on test set
         doc_list_test = []
@@ -591,8 +611,10 @@ def main():
         logger.info(f"\nAccuracy on the test set: {accuracy:.4f}")
         logger.info("\nClassification Report:")
         logger.info(classification_report(y_test, predictions))
-        
-        logger.info(f"Training pytorch version for {"stemming" if stemming else "no stemming"} dataset")
+
+        logger.info(
+            f"Training pytorch version for {"stemming" if stemming else "no stemming"} dataset"
+        )
         pytorch_version(tf_idf_train, labels_train)
 
 
