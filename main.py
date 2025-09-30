@@ -4,11 +4,7 @@ import json
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
-from sklearn.metrics import (
-    confusion_matrix,
-    classification_report,
-    ConfusionMatrixDisplay,
-)
+from sklearn.metrics import (confusion_matrix, classification_report, ConfusionMatrixDisplay)
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -22,7 +18,6 @@ import logging
 import nltk
 nltk.download('stopwords')
 from nltk.corpus import stopwords
-
 
 if os.path.exists("main.log"):
     os.remove("main.log")
@@ -742,3 +737,13 @@ def test():
 if __name__ == "__main__":
     # test()
     main()
+
+
+#Stemming significantly reduced the vocabulary size from 7199 (No Stemming) to 5550 (Stemming), an approximately 23% reduction.
+#Both implementations suffer from extreme bias, the NumPy model defaulted to predicting only the majority class, and the PyTorch model defaulted to predicting only the minority class.
+#Training Issue: The models failed to generalize and were overly sensitive to the data's class imbalance, leading to non-viable classifiers despite acceptable (NumPy) or low (PyTorch) overall accuracy scores.
+#Recommendation: Methods like oversampling, undersampling, or using a class-weighted loss function are necessary to produce a robust and balanced classifier.
+
+#references:
+#Dr. Liao code examples
+
