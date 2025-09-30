@@ -490,7 +490,6 @@ class FeedForwardNN:
         self.backward(learning_rate)
 
         return self.loss
-        return self.loss
 
     def fit(
         self,
@@ -566,7 +565,8 @@ def pytorch_version(
     for epoch in range(1, 501):
         optimizer.zero_grad()
         outputs = model(x)
-        loss = mse_loss(outputs, y)
+        result = torch.sigmoid(outputs)
+        loss = mse_loss(result, y)
         loss.backward()
         optimizer.step()
         if epoch % log_step == 0:
@@ -619,11 +619,11 @@ def main():
         # nn = FeedForwardNN([input_shape, 20, 20, 1], ["relu", "relu"])
         nn = FeedForwardNN()
         nn.layer(input_shape, 20)
-        nn.layers.append(("tanh", None))
+        nn.layers.append(("relu", None))
         nn.layer(20, 20)
-        nn.layers.append(("tanh", None))
+        nn.layers.append(("relu", None))
         nn.layer(20, 20)
-        nn.layers.append(("tanh", None))
+        nn.layers.append(("relu", None))
         nn.layer(20, 1)
 
         X_train = tf_idf_train.tfidf_table
