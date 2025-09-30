@@ -4,7 +4,11 @@ import json
 import numpy as np
 from numpy.typing import NDArray
 from nltk.stem.snowball import SnowballStemmer
-from sklearn.metrics import (confusion_matrix, classification_report, ConfusionMatrixDisplay)
+from sklearn.metrics import (
+    confusion_matrix,
+    classification_report,
+    ConfusionMatrixDisplay,
+)
 import emoji
 import matplotlib.pyplot as plt
 from collections import Counter
@@ -16,7 +20,8 @@ import torch.optim as optim
 import pandas as pd
 import logging
 import nltk
-nltk.download('stopwords')
+
+nltk.download("stopwords")
 from nltk.corpus import stopwords
 
 if os.path.exists("main.log"):
@@ -104,8 +109,7 @@ class DataProcessing:
         self.neg_vocab.add("<UNK>")
         self.all_vocab.add("<UNK>")
         self.stemmer = SnowballStemmer("english")
-        self.stop_words = set(stopwords.words('english'))
-
+        self.stop_words = set(stopwords.words("english"))
 
     # If the words have more than one capital letter, keep it as is; otherwise, convert to lowercase
     def remain_capital_words(self, content: str) -> str:
@@ -119,7 +123,7 @@ class DataProcessing:
 
     # Main data cleaning function
     def data_cleaning(self, content: str) -> str:
-        
+
         # remove HTML tags
         content = bs(content, "html.parser").get_text()
 
@@ -132,16 +136,16 @@ class DataProcessing:
         # remove URLs
         content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
 
-        #removes punctations and special characters
+        # removes punctations and special characters
         content = re.findall(r"\w+|[^\w\s]", content)
 
-        #removes stopwords
+        # removes stopwords
         content = [t for t in content if t.lower() not in self.stop_words]
 
         # stemming
         if self.stemming:
             content = [self.stemmer.stem(t) for t in content]
-        content = " ".join(content) 
+        content = " ".join(content)
 
         return content.strip()
 
@@ -739,11 +743,10 @@ if __name__ == "__main__":
     main()
 
 
-#Stemming significantly reduced the vocabulary size from 7199 (No Stemming) to 5550 (Stemming), an approximately 23% reduction.
-#Both implementations suffer from extreme bias, the NumPy model defaulted to predicting only the majority class, and the PyTorch model defaulted to predicting only the minority class.
-#Training Issue: The models failed to generalize and were overly sensitive to the data's class imbalance, leading to non-viable classifiers despite acceptable (NumPy) or low (PyTorch) overall accuracy scores.
-#Recommendation: Methods like oversampling, undersampling, or using a class-weighted loss function are necessary to produce a robust and balanced classifier.
+# Stemming significantly reduced the vocabulary size from 7199 (No Stemming) to 5550 (Stemming), an approximately 23% reduction.
+# Both implementations suffer from extreme bias, the NumPy model defaulted to predicting only the majority class, and the PyTorch model defaulted to predicting only the minority class.
+# Training Issue: The models failed to generalize and were overly sensitive to the data's class imbalance, leading to non-viable classifiers despite acceptable (NumPy) or low (PyTorch) overall accuracy scores.
+# Recommendation: Methods like oversampling, undersampling, or using a class-weighted loss function are necessary to produce a robust and balanced classifier.
 
-#references:
-#Dr. Liao code examples
-
+# references:
+# Dr. Liao code examples
