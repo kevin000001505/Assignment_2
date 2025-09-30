@@ -365,6 +365,13 @@ class FeedForwardNN:
                     store.append(x)
                     self.info.append(store)
 
+                elif obj[0] == "tanh":
+                    store = [obj[0], x]
+                    x = self.tanh(x)
+                    # This will store the activation output for use in backpropagation
+                    store.append(x)
+                    self.info.append(store)
+
             else:
                 weight, bias = obj
                 store = [weight, bias, x]
