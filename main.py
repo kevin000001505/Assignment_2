@@ -291,7 +291,7 @@ class FeedForwardNN:
 
                 # Create and add the dense layer (weights and biases)
                 weight = np.random.rand(input_size, output_size) * 0.1
-                bias = np.zeros((1, output_size)) * 0.1
+                bias = np.zeros((1, output_size))
                 self.layers.append((weight, bias))
 
                 # Add an activation function only for hidden layers
@@ -324,7 +324,7 @@ class FeedForwardNN:
 
     def layer(self, input_size: int, output_size: int):
         weight = np.random.rand(input_size, output_size) * 0.1
-        bias = np.zeros((1, output_size)) * 0.1
+        bias = np.zeros((1, output_size))
         self.layers.append((weight, bias))
 
     def relu(self, x):
@@ -347,7 +347,6 @@ class FeedForwardNN:
 
     def forward(self, x: List[np.ndarray]) -> np.ndarray:
         # for input features
-        self.input = x
         self.info = []
         for obj in self.layers:
             if isinstance(obj[0], str):
@@ -383,6 +382,7 @@ class FeedForwardNN:
                 # This will store the z value before activation for use in backpropagation
                 self.info.append(store)
                 x = z
+
         return x
 
     def mean_squared_error(self, y_true: np.ndarray, y_pred: np.ndarray):
@@ -427,15 +427,15 @@ class FeedForwardNN:
                 # z_input is our forward result, we use T to make it shape become (input_shape, 1)
                 gradient_w = z_input.T @ delta
 
-                # gradient shape will become (input_shape, output_shape). Same as our weight matrix
-                weights -= learning_rate * gradient_w
-
                 # gradient for bias
                 gradient_b = np.sum(delta, axis=0, keepdims=True)
                 bias -= learning_rate * gradient_b
 
-                updated_layers.append([weights, bias])
                 self.backward_loss = delta @ weights.T
+
+                # gradient shape will become (input_shape, output_shape). Same as our weight matrix
+                weights -= learning_rate * gradient_w
+                updated_layers.append([weights, bias])
                 activation = "no activation"
                 continue
 
@@ -472,13 +472,14 @@ class FeedForwardNN:
                     delta = self.backward_loss * activation_output
 
                     gradient = z_input.T @ delta
-                    weights -= learning_rate * gradient
 
                     gradient_b = np.sum(delta, axis=0, keepdims=True)
                     bias -= learning_rate * gradient_b
 
-                    updated_layers.append([weights, bias])
                     self.backward_loss = delta @ weights.T
+
+                    weights -= learning_rate * gradient
+                    updated_layers.append([weights, bias])
         self.layers = list(reversed(updated_layers))
 
     def predict(self, x: np.ndarray) -> np.ndarray:
@@ -502,7 +503,7 @@ class FeedForwardNN:
         self,
         x: np.ndarray,
         y: np.ndarray,
-        training_plan: List = [(200, 1e-4), (350, 1e-5), (500, 1e-6)],
+        training_plan: List = [(200, 1e-4), (350, 1e-5), (500, 1e-5)],
         log_step: int = 10,
     ):
         logger.info(
@@ -563,7 +564,8 @@ def pytorch_version(
 
     model = NeuralNetwork(input_shape).to(device)
     mse_loss = nn.MSELoss()
-    optimizer = optim.SGD(model.parameters(), lr=1e-4)
+    optimizer = optim.SGD(model.parameters(), lr=1e-3)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
 
     x = torch.tensor(tf_idf_train.tfidf_table, dtype=torch.float32).to(device)
     y = torch.tensor(labels, dtype=torch.float32).reshape(-1, 1).to(device)
@@ -576,6 +578,7 @@ def pytorch_version(
         loss = mse_loss(result, y)
         loss.backward()
         optimizer.step()
+        scheduler.step()
         if epoch % log_step == 0:
             logger.info(f"Epoch {epoch}, Loss: {loss.item()}")
 

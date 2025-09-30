@@ -1,0 +1,56 @@
+Statistics for numpy version using no stemming dataset
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.72      1.00      0.84      3000
+           1       0.00      0.00      0.00      1182
+
+    accuracy                           0.72      4182
+   macro avg       0.36      0.50      0.42      4182
+weighted avg       0.51      0.72      0.60      4182
+Confusion Matrix:
+[[3000    0]
+ [1182    0]]
+Statistics for pytorch version using no stemming dataset
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.00      0.00      0.00      3000
+           1       0.28      1.00      0.44      1182
+
+    accuracy                           0.28      4182
+   macro avg       0.14      0.50      0.22      4182
+weighted avg       0.08      0.28      0.12      4182
+Confusion Matrix:
+[[   0 3000]
+ [   0 1182]]
+
+----------------------------
+Statistics for numpy version using stemming dataset
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.72      1.00      0.84      3000
+           1       0.00      0.00      0.00      1182
+
+    accuracy                           0.72      4182
+   macro avg       0.36      0.50      0.42      4182
+weighted avg       0.51      0.72      0.60      4182
+Confusion Matrix:
+[[3000    0]
+ [1182    0]]
+Statistics for pytorch version using stemming dataset
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.72      1.00      0.84      3000
+           1       0.00      0.00      0.00      1182
+
+    accuracy                           0.72      4182
+   macro avg       0.36      0.50      0.42      4182
+weighted avg       0.51      0.72      0.60      4182
+Confusion Matrix:
+[[3000    0]
+ [1182    0]]
+
+----------------------------
