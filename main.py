@@ -118,9 +118,30 @@ class DataProcessing:
 
     # Main data cleaning function
     def data_cleaning(self, content: str) -> str:
+<<<<<<< HEAD
 
         # remove HTML tags
         content = bs(content, "html.parser").get_text()
+=======
+        
+        # remove HTML tags
+        content = bs(content, "html.parser").get_text()
+
+        # convert emojis to text
+        content = emoji.emojize(content)
+
+        # keeps capital words, lowercases others
+        content = self.remain_capital_words(content)
+
+        # remove URLs
+        content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
+
+        #removes punctations and special characters
+        content = re.findall(r"\w+|[^\w\s]", content)
+
+        #removes stopwords
+        content = [t for t in content if t.lower() not in self.stop_words]
+>>>>>>> 35a9e4c (stopwords removal and stemming at punctuation)
 
         # transform emoji
         content = emoji.emojize(content)
