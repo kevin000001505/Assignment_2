@@ -19,6 +19,10 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import logging
+import nltk
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
 
 if os.path.exists("main.log"):
     os.remove("main.log")
@@ -105,6 +109,8 @@ class DataProcessing:
         self.neg_vocab.add("<UNK>")
         self.all_vocab.add("<UNK>")
         self.stemmer = SnowballStemmer("english")
+        self.stop_words = set(stopwords.words('english'))
+
 
     # If the words have more than one capital letter, keep it as is; otherwise, convert to lowercase
     def remain_capital_words(self, content: str) -> str:
@@ -118,11 +124,6 @@ class DataProcessing:
 
     # Main data cleaning function
     def data_cleaning(self, content: str) -> str:
-<<<<<<< HEAD
-
-        # remove HTML tags
-        content = bs(content, "html.parser").get_text()
-=======
         
         # remove HTML tags
         content = bs(content, "html.parser").get_text()
@@ -141,23 +142,11 @@ class DataProcessing:
 
         #removes stopwords
         content = [t for t in content if t.lower() not in self.stop_words]
->>>>>>> 35a9e4c (stopwords removal and stemming at punctuation)
 
-        # transform emoji
-        content = emoji.emojize(content)
-
-        # Removes capitalization
-        content = self.remain_capital_words(content)
-
-        # Removes punctuations
-        content = re.sub(r"[^\w\s]", "", content)
-
-        # Need the re to remove links like http, https, www
-        content = re.sub(r"http\S+|www\S+|https\S+", "", content, flags=re.MULTILINE)
-
-        # Stemming
+        # stemming
         if self.stemming:
-            content = " ".join([self.stemmer.stem(word) for word in content.split()])
+            content = [self.stemmer.stem(t) for t in content]
+        content = " ".join(content) 
 
         return content.strip()
 
